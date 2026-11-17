@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+
+{% block title %}CyberShield - ML Scam Message Classifier{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <div>
+    <h3 class="fw-bold mb-1 brand-text">
+      <i class="bi bi-cpu text-info me-2"></i>ML Scam Message Classifier
+    </h3>
+    <p class="text-muted mb-0">
+      Trained on the <strong>UCI SMS Spam Collection</strong> dataset using <strong>TF-IDF & Logistic Regression</strong> with full evaluation metrics.
+    </p>
+  </div>
+  <div>
+    <form action="{{ url_for('ml_retrain') }}" method="POST" class="d-inline">
+      <button type="submit" class="btn btn-cyber-outline btn-sm">
+        <i class="bi bi-arrow-repeat me-1"></i> Retrain Model
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- Dataset & Pipeline Summary -->
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="cyber-card p-3 text-center">
+      <div class="text-muted small">UCI Dataset Samples</div>
+      <div class="fs-4 fw-bold text-light">{{ dataset_info.total_samples }}</div>
+      <div class="small text-muted">SMS Messages</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="cyber-card p-3 text-center">
+      <div class="text-muted small">Class Distribution</div>
+      <div class="fs-5 fw-bold text-light">
+        <span class="text-success">{{ dataset_info.ham_samples }} Ham</span> / 
+        <span class="text-danger">{{ dataset_info.spam_samples }} Spam</span>
+      </div>
+      <div class="small text-muted">{{ dataset_info.spam_ratio }}% Spam Ratio</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="cyber-card p-3 text-center">
+      <div class="text-muted small">TF-IDF Vocabulary</div>
+      <div class="fs-4 fw-bold text-info">{{ dataset_info.vocabulary_size }}</div>
+      <div class="small text-muted">N-gram (1-2) features</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="cyber-card p-3 text-center">
+      <div class="text-muted small">Test Set Size</div>
+      <div class="fs-4 fw-bold text-light">{{ metrics.test_samples }}</div>
+      <div class="small text-muted">20% Stratified Holdout</div>
+    </div>
+  </div>
+</div>
+
+<!-- Evaluation Metrics & Confusion Matrix -->
+<div class="row g-4 mb-4">
+  <!-- Metric Cards -->
+  <div class="col-lg-6">
+    <div class="cyber-card p-4 h-100">
+      <h5 class="fw-bold text-light mb-3">
+        <i class="bi bi-bar-chart-line text-info me-2"></i>Model Evaluation Metrics
+      </h5>
+      <p class="small text-muted">
+        Performance evaluated against the holdout test set using balanced class weighting:
+      </p>
+
+      <div class="row g-3">
+        <div class="col-6">
+          <div class="p-3 rounded bg-dark border border-secondary text-center">
+            <div class="text-muted small">Accuracy</div>
+            <div class="fs-3 fw-bold text-light">{{ metrics.accuracy }}%</div>
+            <div class="progress progress-cyber mt-2" style="height: 6px;">
+              <div class="progress-bar bg-info" style="width: {{ metrics.accuracy }}%"></div>
+            </div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="p-3 rounded bg-dark border border-secondary text-center">
+            <div class="text-muted small">Precision (Spam)</div>
+            <div class="fs-3 fw-bold text-success">{{ metrics.precision }}%</div>
+            <div class="progress progress-cyber mt-2" style="height: 6px;">
+              <div class="progress-bar bg-success" style="width: {{ metrics.precision }}%"></div>
+            </div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="p-3 rounded bg-dark border border-secondary text-center">
+            <div class="text-muted small">Recall (Spam)</div>
+            <div class="fs-3 fw-bold text-warning">{{ metrics.recall }}%</div>
+            <div class="progress progress-cyber mt-2" style="height: 6px;">
+              <div class="progress-bar bg-warning" style="width: {{ metrics.recall }}%"></div>
+            </div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="p-3 rounded bg-dark border border-secondary text-center">
+            <div class="text-muted small">F1-Score</div>
+            <div class="fs-3 fw-bold text-primary">{{ metrics.f1_score }}%</div>
+            <div class="progress progress-cyber mt-2" style="height: 6px;">
+              <div class="progress-bar bg-primary" style="width: {{ metrics.f1_score }}%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Visual Confusion Matrix -->
+  <div class="col-lg-6">
+    <div class="cyber-card p-4 h-100">
+      <h5 class="fw-bold text-light mb-2">
+        <i class="bi bi-grid-3x3 text-info me-2"></i>Confusion Matrix
+      </h5>
+      <p class="small text-muted mb-3">
+        Breakdown of true vs predicted labels on {{ metrics.test_samples }} test SMS messages:
+      </p>
+
+      <div class="row g-2 text-center">
+        <!-- TN -->
+        <div class="col-6">
+          <div class="cm-box cm-box-tn">
+            <div class="small text-muted text-uppercase fw-semibold">True Negative (TN)</div>
+            <div class="fs-2 fw-bold text-success">{{ metrics.confusion_matrix.tn }}</div>
+            <div class="small text-success">Legitimate (Ham) correctly identified</div>
+          </div>
+        </div>
+        <!-- FP -->
+        <div class="col-6">
+          <div class="cm-box cm-box-fp">
+            <div class="small text-muted text-uppercase fw-semibold">False Positive (FP)</div>
+            <div class="fs-2 fw-bold text-warning">{{ metrics.confusion_matrix.fp }}</div>
+            <div class="small text-warning">Ham incorrectly flagged as Spam</div>
+          </div>
+        </div>
+        <!-- FN -->
+        <div class="col-6">
+          <div class="cm-box cm-box-fn">
+            <div class="small text-muted text-uppercase fw-semibold">False Negative (FN)</div>
+            <div class="fs-2 fw-bold text-danger">{{ metrics.confusion_matrix.fn }}</div>
+            <div class="small text-danger">Spam / Scam missed</div>
+          </div>
+        </div>
+        <!-- TP -->
+        <div class="col-6">
+          <div class="cm-box cm-box-tp">
+            <div class="small text-muted text-uppercase fw-semibold">True Positive (TP)</div>
+            <div class="fs-2 fw-bold text-info">{{ metrics.confusion_matrix.tp }}</div>
+            <div class="small text-info">Spam / Scam caught successfully</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Interactive Live Classifier Section -->
+<div class="row g-4">
+  <div class="col-lg-6">
+    <div class="cyber-card p-4">
+      <h5 class="fw-bold text-light mb-3">
+        <i class="bi bi-chat-text text-info me-2"></i>Classify Message Live
+      </h5>
+
+      <!-- Sample buttons -->
+      <div class="mb-3">
+        <label class="form-label text-muted small fw-semibold">Quick Test Messages:</label>
+        <div class="d-flex flex-wrap gap-2">
+          <button type="button" class="btn btn-sm btn-outline-danger" onclick="fillMLScamSample('spam_prize')">
+            <i class="bi bi-trophy me-1"></i> Cash Prize Spam
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-warning" onclick="fillMLScamSample('spam_credit')">
+            <i class="bi bi-phone me-1"></i> Mobile Upgrade Scam
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-success" onclick="fillMLScamSample('ham_normal')">
+            <i class="bi bi-chat-dots me-1"></i> Normal SMS
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-info" onclick="fillMLScamSample('ham_work')">
+            <i class="bi bi-briefcase me-1"></i> Work Update
+          </button>
+        </div>
+      </div>
+
+      <form action="{{ url_for('ml_classifier') }}" method="POST">
+        <div class="mb-3">
+          <label class="form-label text-muted small">SMS / Message Content *</label>
+          <textarea id="ml_message_text" name="message_text" class="form-control" rows="4" placeholder="Enter or paste an SMS text to classify..." required>{{ test_message }}</textarea>
+        </div>
+
+        <div class="d-grid">
+          <button type="submit" name="classify_btn" value="1" class="btn btn-cyber-primary py-2">
+            <i class="bi bi-lightning-charge-fill me-1"></i> Run ML Classification
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    {% if classification %}
+      <div class="cyber-card p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3 p-3 rounded bg-{{ 'danger' if classification.is_spam else 'success' }}-subtle border border-{{ 'danger' if classification.is_spam else 'success' }}">
+          <div>
+            <div class="small text-uppercase fw-semibold text-{{ 'danger' if classification.is_spam else 'success' }}">Model Prediction</div>
+            <h4 class="fw-bold mb-0 text-{{ 'danger' if classification.is_spam else 'success' }}">
+              {% if classification.is_spam %}
+                <i class="bi bi-exclamation-octagon-fill me-2"></i>SPAM / SCAM DETECTED
+              {% else %}
+                <i class="bi bi-shield-check-fill me-2"></i>LEGITIMATE (HAM) MESSAGE
+              {% endif %}
+            </h4>
+          </div>
+          <div class="text-end">
+            <div class="fs-2 fw-bold text-{{ 'danger' if classification.is_spam else 'success' }}">
+              {{ classification.confidence }}%
+            </div>
+            <div class="small text-muted">Confidence</div>
+          </div>
+        </div>
+
+        <!-- Probabilities -->
+        <div class="row g-2 mb-3 text-center">
+          <div class="col-6">
+            <div class="p-2 rounded bg-dark border border-secondary">
+              <div class="small text-muted">Spam Probability</div>
+              <div class="fs-5 fw-bold text-danger">{{ classification.spam_prob }}%</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="p-2 rounded bg-dark border border-secondary">
+              <div class="small text-muted">Legitimate (Ham) Probability</div>
+              <div class="fs-5 fw-bold text-success">{{ classification.ham_prob }}%</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Preprocessed Representation -->
+        <div class="mb-3">
+          <label class="small text-muted fw-semibold">Preprocessed NLP Tokens:</label>
+          <div class="p-2 rounded bg-dark border border-secondary mono-font small text-info text-break">
+            {{ classification.preprocessed or '[All tokens normalized]' }}
+          </div>
+        </div>
+
+        <!-- Influential Words (Feature Contribution) -->
+        {% if classification.top_features %}
+          <h6 class="fw-bold text-light mb-2">
+            <i class="bi bi-sliders text-info me-1"></i> Influential Word Weights in Model:
+          </h6>
+          <div class="table-responsive">
+            <table class="table table-cyber table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Word</th>
+                  <th>Model Weight</th>
+                  <th>Tendency</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for f in classification.top_features %}
+                  <tr>
+                    <td class="mono-font fw-semibold text-light">{{ f.word }}</td>
+                    <td class="mono-font small text-{{ 'danger' if f.weight > 0 else 'success' }}">{{ f.weight }}</td>
+                    <td>
+                      {% if f.weight > 0 %}
+                        <span class="badge badge-rose">Spam Factor</span>
+                      {% else %}
+                        <span class="badge badge-emerald">Ham Factor</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% endif %}
+      </div>
+    {% else %}
+      <div class="cyber-card p-5 text-center h-100 d-flex flex-column justify-content-center">
+        <i class="bi bi-cpu text-muted fs-1 mb-3"></i>
+        <h5 class="text-light">Awaiting Test Message</h5>
+        <p class="text-muted small mb-3">
+          Enter an SMS text or choose one of the quick test presets to evaluate the Logistic Regression model in real time.
+        </p>
+        <div class="d-flex justify-content-center gap-2">
+          <button class="btn btn-sm btn-outline-info" onclick="fillMLScamSample('spam_prize')">
+            Test Cash Prize Spam
+          </button>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

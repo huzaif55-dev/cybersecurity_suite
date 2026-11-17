@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}CyberShield - Suspicious Message & Link Checker{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <div>
+    <h3 class="fw-bold mb-1 brand-text">
+      <i class="bi bi-shield-exclamation text-danger me-2"></i>Suspicious Message & Link Checker
+    </h3>
+    <p class="text-muted mb-0">
+      Heuristic inspection of SMS/email text and embedded URLs for social engineering, brand spoofing, and malicious syntax.
+    </p>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Input Form Column -->
+  <div class="col-lg-5">
+    <div class="cyber-card p-4">
+      <h5 class="fw-bold text-light mb-3">
+        <i class="bi bi-input-cursor text-info me-2"></i>Inspect Message / URL
+      </h5>
+
+      <!-- Sample Presets -->
+      <div class="mb-3">
+        <label class="form-label text-muted small fw-semibold">Quick Test Presets:</label>
+        <div class="d-flex flex-wrap gap-2">
+          <button type="button" class="btn btn-sm btn-outline-danger" onclick="fillLinkCheckerSample('bank_phish')">
+            <i class="bi bi-bank me-1"></i> Bank Phishing
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-warning" onclick="fillLinkCheckerSample('lottery_scam')">
+            <i class="bi bi-trophy me-1"></i> Prize/Lottery Scam
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-success" onclick="fillLinkCheckerSample('legit_msg')">
+            <i class="bi bi-check2-circle me-1"></i> Clean Message
+          </button>
+        </div>
+      </div>
+
+      <form action="{{ url_for('link_checker') }}" method="POST">
+        <div class="mb-3">
+          <label class="form-label text-muted small">Suspicious Message Text</label>
+          <textarea id="message_text" name="message_text" class="form-control" rows="4" placeholder="Paste the SMS, email body, or chat message here...">{{ input_text }}</textarea>
+          <div class="form-text text-muted" style="font-size: 0.75rem;">
+            Checks for urgency pressure, threats, lottery/crypto fraud, and brand impersonation.
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label text-muted small">Target URL / Link (Optional if already in message)</label>
+          <input type="text" id="target_url" name="target_url" class="form-control mono-font" placeholder="e.g. http://192.168.1.50/login or https://paypal.com.evil.xyz" value="{{ input_url }}">
+          <div class="form-text text-muted" style="font-size: 0.75rem;">
+            Checks for raw IPs, suspicious TLDs (.xyz, .top), URL shorteners, and @ redirects.
+          </div>
+        </div>
+
+        <div class="d-grid mt-4">
+          <button type="submit" class="btn btn-cyber-primary py-2">
+            <i class="bi bi-search me-1"></i> Analyze Threat Risk
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Analysis Results Column -->
+  <div class="col-lg-7">
+    {% if result %}
+      <div class="cyber-card p-4">
+        <!-- Verdict Header Banner -->
+        <div class="d-flex justify-content-between align-items-center mb-3 p-3 rounded bg-{{ result.verdict_class }}-subtle border border-{{ result.verdict_class }}">
+          <div>
+            <div class="small text-uppercase fw-semibold text-{{ result.verdict_class }}">Inspection Verdict</div>
+            <h4 class="fw-bold mb-0 text-{{ result.verdict_class }}">
+              {% if result.verdict_class == 'danger' %}
+                <i class="bi bi-exclamation-octagon-fill me-2"></i>
+              {% elif result.verdict_class == 'warning' %}
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+              {% elif result.verdict_class == 'info' %}
+                <i class="bi bi-info-circle-fill me-2"></i>
+              {% else %}
+                <i class="bi bi-shield-check-fill me-2"></i>
+              {% endif %}
+              {{ result.verdict }}
+            </h4>
+          </div>
+          <div class="text-end">
+            <div class="fs-2 fw-bold text-{{ result.verdict_class }}">{{ result.risk_score }}<span class="fs-6 text-muted">/100</span></div>
+            <div class="small text-muted">Risk Score</div>
+          </div>
+        </div>
+
+        <!-- Risk Progress Bar -->
+        <div class="progress progress-cyber mb-4" style="height: 12px;">
+          <div class="progress-bar bg-{{ result.verdict_class }}" style="width: {{ result.risk_score }}%;"></div>
+        </div>
+
+        <!-- Detected URLs -->
+        {% if result.checked_urls %}
+          <div class="mb-4">
+            <label class="small text-muted fw-semibold">Analyzed URLs ({{ result.checked_urls|length }}):</label>
+            <div class="p-2 rounded bg-dark border border-secondary">
+              {% for u in result.checked_urls %}
+                <div class="mono-font small text-warning py-1 text-break">
+                  <i class="bi bi-link-45deg me-1"></i>{{ u }}
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
+
+        <!-- Why Something Was Flagged (Findings Breakdown) -->
+        <h6 class="fw-bold text-light mb-2">
+          <i class="bi bi-card-checklist text-info me-1"></i> Why Something Was Flagged ({{ result.total_flags }} Findings):
+        </h6>
+        
+        {% if result.flags %}
+          <div class="table-responsive mb-4">
+            <table class="table table-cyber align-middle">
+              <thead>
+                <tr>
+                  <th>Category</th>
+                  <th>Indicator Found</th>
+                  <th>Severity</th>
+                  <th>Why It Was Flagged</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for f in result.flags %}
+                  <tr>
+                    <td class="fw-semibold text-light text-nowrap small">{{ f.category }}</td>
+                    <td class="mono-font small text-info text-break">{{ f.indicator }}</td>
+                    <td>
+                      {% if f.severity == 'danger' %}
+                        <span class="badge badge-rose">High</span>
+                      {% elif f.severity == 'warning' %}
+                        <span class="badge badge-amber">Medium</span>
+                      {% else %}
+                        <span class="badge badge-cyan">Low</span>
+                      {% endif %}
+                    </td>
+                    <td class="small text-muted">{{ f.reason }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="p-3 rounded bg-dark border border-secondary text-success mb-4 small">
+            <i class="bi bi-check-circle-fill me-1"></i> No suspicious keywords, urgent pressure tactics, or dangerous URL structures were detected.
+          </div>
+        {% endif %}
+
+        <!-- Safety Recommendations -->
+        <h6 class="fw-bold text-light mb-2">
+          <i class="bi bi-shield-check text-success me-1"></i> Actionable Safety Recommendations:
+        </h6>
+        <div class="p-3 rounded bg-dark border border-secondary">
+          <ul class="mb-0 ps-3">
+            {% for rec in result.recommendations %}
+              <li class="small text-light mb-1">{{ rec }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+
+      </div>
+    {% else %}
+      <div class="cyber-card p-5 text-center h-100 d-flex flex-column justify-content-center">
+        <i class="bi bi-shield-lock text-muted fs-1 mb-3"></i>
+        <h5 class="text-light">Awaiting Message or URL Input</h5>
+        <p class="text-muted small mb-3">
+          Paste a suspicious SMS, email text, or web address on the left, or click one of the quick test presets to analyze potential phishing threats.
+        </p>
+        <div class="d-flex justify-content-center gap-2">
+          <button class="btn btn-sm btn-outline-info" onclick="fillLinkCheckerSample('bank_phish')">
+            Try Bank Phishing Demo
+          </button>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block title %}CyberShield - Security Habit Tracker{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <div>
+    <h3 class="fw-bold mb-1 brand-text">
+      <i class="bi bi-activity text-success me-2"></i>Security Habit Tracker
+    </h3>
+    <p class="text-muted mb-0">
+      Build and track daily defense behaviors including 2FA authentication, software patching, and credential separation.
+    </p>
+  </div>
+</div>
+
+<!-- Weekly Metrics Banner -->
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="cyber-card p-3 text-center">
+      <div class="text-muted small">7-Day Security Adherence</div>
+      <div class="fs-2 fw-bold text-success">{{ progress.avg_score }}%</div>
+      <div class="progress progress-cyber mt-2">
+        <div class="progress-bar bg-success" style="width: {{ progress.avg_score }}%"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="cyber-card p-3 text-center">
+      <div class="text-muted small">Active Habit Streak</div>
+      <div class="fs-2 fw-bold text-warning">
+        <i class="bi bi-fire me-1"></i>{{ progress.streak }} Days
+      </div>
+      <div class="small text-muted mt-2">Consecutive days ≥ 50% security score</div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="cyber-card p-3 text-center">
+      <div class="text-muted small">Weekly Days Logged</div>
+      <div class="fs-2 fw-bold text-info">{{ progress.logged_days_count }} / 7</div>
+      <div class="small text-muted mt-2">Active logging builds consistent cyber habits</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Left Column: Daily Habit Check-in Form -->
+  <div class="col-lg-5">
+    <div class="cyber-card p-4">
+      <h5 class="fw-bold text-light mb-3">
+        <i class="bi bi-calendar-check text-info me-2"></i>Daily Habit Check-in
+      </h5>
+
+      <form action="{{ url_for('habits_log') }}" method="POST">
+        <div class="mb-3">
+          <label class="form-label text-muted small">Check-in Date *</label>
+          <input type="date" name="log_date" class="form-control" value="{{ today_iso }}" required>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label text-muted small fw-semibold">Check Completed Security Habits:</label>
+          <div class="list-group">
+            {% for h in habit_definitions %}
+              {% set is_checked = false %}
+              {% if progress.today_log %}
+                {% if h.id == 'two_factor_auth' and progress.today_log.two_factor_auth %}{% set is_checked = true %}{% endif %}
+                {% if h.id == 'software_updates' and progress.today_log.software_updates %}{% set is_checked = true %}{% endif %}
+                {% if h.id == 'avoid_pwd_reuse' and progress.today_log.avoid_pwd_reuse %}{% set is_checked = true %}{% endif %}
+                {% if h.id == 'phishing_vigilance' and progress.today_log.phishing_vigilance %}{% set is_checked = true %}{% endif %}
+                {% if h.id == 'secure_wifi_vpn' and progress.today_log.secure_wifi_vpn %}{% set is_checked = true %}{% endif %}
+                {% if h.id == 'screen_lock_backup' and progress.today_log.screen_lock_backup %}{% set is_checked = true %}{% endif %}
+              {% endif %}
+
+              <label class="list-group-item d-flex gap-3 align-items-center bg-dark border-secondary mb-2 rounded cursor-pointer">
+                <input class="form-check-input flex-shrink-0" type="checkbox" name="{{ h.id }}" value="1" {% if is_checked %}checked{% endif %}>
+                <div>
+                  <div class="fw-semibold text-light">
+                    <i class="bi {{ h.icon }} text-info me-1"></i> {{ h.name }}
+                  </div>
+                  <div class="small text-muted">{{ h.desc }}</div>
+                </div>
+              </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label text-muted small">Security Notes / Incident Observations</label>
+          <input type="text" name="notes" class="form-control" placeholder="e.g. Updated Firefox to v128, ignored SMS spoof." value="{{ progress.today_log.notes if progress.today_log else '' }}">
+        </div>
+
+        <div class="d-grid">
+          <button type="submit" class="btn btn-cyber-primary py-2">
+            <i class="bi bi-cloud-arrow-up me-1"></i> Save Daily Habits
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Right Column: Visual Charts & Recommendations -->
+  <div class="col-lg-7">
+    <!-- Chart 1: 7-Day Trend -->
+    <div class="cyber-card p-4 mb-4">
+      <h6 class="fw-bold text-light mb-3">
+        <i class="bi bi-graph-up text-info me-2"></i>7-Day Security Compliance Trend
+      </h6>
+      <div style="height: 220px;">
+        <canvas id="habitTrendChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Chart 2: Habit Breakdown Rates -->
+    <div class="cyber-card p-4 mb-4">
+      <h6 class="fw-bold text-light mb-3">
+        <i class="bi bi-pie-chart text-info me-2"></i>Weekly Habit Adherence Breakdown
+      </h6>
+      <div class="row g-3">
+        {% for hb in progress.habit_breakdown %}
+          <div class="col-md-6">
+            <div class="p-3 rounded bg-dark border border-secondary">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="small fw-semibold text-light">
+                  <i class="bi {{ hb.icon }} text-info me-1"></i> {{ hb.name }}
+                </span>
+                <span class="small fw-bold text-{{ 'success' if hb.rate >= 70 else ('warning' if hb.rate >= 40 else 'danger') }}">
+                  {{ hb.rate }}%
+                </span>
+              </div>
+              <div class="progress progress-cyber" style="height: 6px;">
+                <div class="progress-bar bg-{{ 'success' if hb.rate >= 70 else ('warning' if hb.rate >= 40 else 'danger') }}" style="width: {{ hb.rate }}%;"></div>
+              </div>
+              <div class="small text-muted mt-1" style="font-size: 0.72rem;">
+                Completed {{ hb.completed_days }} of 7 days
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Recommendations Based on Weekly Score -->
+    <div class="cyber-card p-4">
+      <h6 class="fw-bold text-light mb-2">
+        <i class="bi bi-lightbulb-fill text-warning me-2"></i>Targeted Habit Recommendations
+      </h6>
+      <div class="p-3 rounded bg-dark border border-secondary">
+        <ul class="mb-0 ps-3">
+          {% for rec in progress.recommendations %}
+            <li class="small text-light mb-1">{{ rec }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const ctx = document.getElementById('habitTrendChart').getContext('2d');
+    const labels = {{ progress.labels|tojson }};
+    const dataScores = {{ progress.daily_scores|tojson }};
+
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Daily Security Score (%)',
+          data: dataScores,
+          borderColor: '#10b981',
+          backgroundColor: 'rgba(16, 185, 129, 0.15)',
+          fill: true,
+          tension: 0.35,
+          pointBackgroundColor: '#10b981',
+          pointBorderColor: '#fff',
+          pointRadius: 5,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            min: 0,
+            max: 100,
+            ticks: { color: '#94a3b8' },
+            grid: { color: 'rgba(255, 255, 255, 0.06)' }
+          },
+          x: {
+            ticks: { color: '#94a3b8' },
+            grid: { color: 'rgba(255, 255, 255, 0.06)' }
+          }
+        },
+        plugins: {
+          legend: {
+            labels: { color: '#f8fafc' }
+          }
+        }
+      }
+    });
+  });
+</script>
+{% endblock %}
